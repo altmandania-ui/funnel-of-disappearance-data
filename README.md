@@ -58,7 +58,7 @@ numeric codes, GDELT uses country names; unknown names are logged and returned w
 - With no cache at all, routes still return valid JSON (empty lists / `null` values, `stale: true`).
   The Estimated stage is a constant and is always present. Run `npm run refresh` once before the
   exhibition so there is a cache to fall back on.
-- GDELT: requests are queued one at a time, ≥ 6.5 s apart. HTTP 429 is retried with backoff
+- GDELT: requests are queued one at a time, ≥ 15 s apart. HTTP 429 is retried with backoff
   (30 s, 60 s); if it is still throttled the run stops early and tries again on the next tick.
   Nothing crashes.
 

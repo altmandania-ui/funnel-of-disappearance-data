@@ -78,5 +78,7 @@ export const REFRESH_MS: Record<SourceId, number> = {
 };
 
 export const DOJ_BACKFILL_YEARS = 3;
-export const GDELT_MIN_SPACING_MS = 6_500;
+// GDELT asks for one request per 5 s, but in practice 6.5 s spacing still drew 429s (responses
+// themselves take ~12 s). Six requests per 15-minute tick leaves plenty of room, so be generous.
+export const GDELT_MIN_SPACING_MS = 15_000;
 export const NEWS_RETENTION_HOURS = 24 * 7;

@@ -212,6 +212,8 @@ app.get("/api/news", (c) => {
       hours,
       total: news.items.length,
       rawArticles: news.rawCount,
+      // true when the last refresh only got some of the queries through (rate limit); see failedQueries
+      partial: news.failedQueries.length > 0,
       failedQueries: news.failedQueries,
       articles: news.items.slice(0, limit),
     },
@@ -224,7 +226,7 @@ app.get("/api/news/timeline", (c) => {
   const t = getTimeline();
   return respond(
     c,
-    { query: t?.query ?? null, timespan: t?.timespan ?? "3m", unit: t?.unit ?? null, timelineFetchedAt: t?.fetchedAt ?? null, series: t?.series ?? [] },
+    { timelineStale: !t || Date.now() - Date.parse(t.fetchedAt) > 2 * REFRESH_MS.gdelt, query: t?.query ?? null, timespan: t?.timespan ?? "3m", unit: t?.unit ?? null, timelineFetchedAt: t?.fetchedAt ?? null, series: t?.series ?? [] },
     ["gdelt"],
     ["timelineUnit", "newsNoise"],
   );

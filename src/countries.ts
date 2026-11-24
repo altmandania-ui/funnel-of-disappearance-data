@@ -259,6 +259,7 @@ export const COUNTRY_TABLE: ReadonlyArray<readonly [m49: number, iso3: string, n
 
 // Extra spellings seen in sources (GDELT uses FIPS-style country names; SDG uses UN names).
 const ALIASES: Record<string, string> = {
+  "china": "CHN", "slovak republic": "SVK", "kyrgyzstan": "KGZ", "falkland islands": "FLK",
   "united states": "USA", "united states of america": "USA", "us": "USA", "usa": "USA",
   "united kingdom": "GBR", "uk": "GBR", "united kingdom of great britain and northern ireland": "GBR",
   "russia": "RUS", "russian federation": "RUS",
