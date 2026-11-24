@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<title>Funnel data layer — debug</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; max-width: 1100px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+  img { width: 96px; height: 64px; object-fit: cover; background: #eee; }
+  .stale { background: #fdd; } .low { color: #a00; } small { color: #666; }
+</style>
+</head>
+<body>
+<h1>Funnel data layer — debug view</h1>
+<p><small>Plain debug page, not the piece. Reloads data every 60s. Last load: <span id="loaded">…</span></small></p>
+
+<h2>Funnel</h2><div id="funnel">loading…</div>
+<h2>Health</h2><div id="health">loading…</div>
+<h2>Latest 20 cases (DOJ)</h2><div id="cases">loading…</div>
+<h2>Latest 30 news items (GDELT)</h2><div id="news">loading…</div>
+
+<script>
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = (n) => (n === null || n === undefined ? "—" : Number(n).toLocaleString("en-US"));
+const safeUrl = (u) => (/^https?:\/\//i.test(u ?? "") ? esc(u) : "#");
+const get = (path) => fetch(path).then((r) => r.json());
+const set = (id, html) => (document.getElementById(id).innerHTML = html);
+const caveats = (d) => "<ul>" + (d.caveats ?? []).map((c) => `<li><small>${esc(c)}</small></li>`).join("") + "</ul>";
+
+async function load() {
+  const [funnel, health, cases, news] = await Promise.all([
+    get("/api/funnel"), get("/api/health"), get("/api/cases?limit=20"), get("/api/news?hours=24&limit=30"),
+  ]);
+
+  set("funnel", "<table><tr><th>Stage</th><th>Value</th><th>Unit / scope</th><th>Year</th><th>Note</th></tr>" +
+    funnel.stages.map((s) => `<tr class="${s.stale ? "stale" : ""}"><td>${esc(s.id)}<br><small>${esc(s.label)}</small></td>
+      <td><b>${num(s.value)}</b></td><td>${esc(s.unit)}<br><small>${esc(s.scope)}</small></td><td>${esc(s.year ?? "")}</td>
+      <td><small>${esc(s.caveat)}${s.stale ? " <b>[STALE]</b>" : ""}</small></td></tr>`).join("") + "</table>" +
+    `<p><small>Detected, latest year available: ${esc(funnel.latestYear?.detected.year)} — ${num(funnel.latestYear?.detected.countries)} countries reporting, sum ${num(funnel.latestYear?.detected.total)}.</small></p>` +
+    caveats(funnel));
+
+  set("health", "<table><tr><th>Source</th><th>Stale</th><th>Last success</th><th>Last error</th><th>Last summary</th></tr>" +
+    Object.entries(health.health).map(([id, h]) => `<tr class="${h.stale ? "stale" : ""}"><td>${esc(id)}<br><small>every ${h.refreshEveryMinutes} min</small></td>
+      <td>${h.stale ? "STALE" : "ok"}</td><td>${esc(h.lastSuccess ?? "never")}</td>
+      <td>${h.lastError ? esc(h.lastError.at) + "<br><small>" + esc(h.lastError.message) + "</small>" : "—"}</td>
+      <td><small>${esc(h.lastSummary ?? "")}</small></td></tr>`).join("") + "</table>");
+
+  set("cases", `<p><small>${num(cases.total)} releases since ${esc(cases.backfillSince)}</small></p>` +
+    "<table><tr><th>Date</th><th>Stage</th><th>Type</th><th>Conf.</th><th>Title (DOJ)</th><th>Defendants (stage per person)</th><th>Sentence</th><th>Victims mentioned</th><th>District</th></tr>" +
+    cases.cases.map((x) => `<tr><td>${esc(x.date)}</td><td>${esc(x.stage ?? "—")}</td><td>${esc(x.type ?? "—")}</td>
+      <td class="${esc(x.confidence)}" title="${esc(x.confidenceReasons.join("; "))}">${esc(x.confidence)}</td>
+      <td><a href="${safeUrl(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a></td>
+      <td>${x.defendantsWithheld ? "<small>withheld</small>" : x.defendants.map((d) => `${esc(d.name)} <small>(${esc(d.stage)})</small>`).join("<br>")}</td>
+      <td>${esc(x.sentence?.text ?? "")}</td>
+      <td>${esc(x.victimsMentioned?.text ?? "")}${x.minorVictims ? " <small>(minors)</small>" : ""}</td>
+      <td>${esc(x.district ?? "")}</td></tr>`).join("") + "</table>" + caveats(cases));
+
+  set("news", `<p><small>${num(news.total)} deduplicated articles (${num(news.rawArticles)} raw) in the last ${news.hours}h</small></p>` +
+    "<table><tr><th>Image</th><th>Seen</th><th>Title</th><th>Outlet</th><th>Country</th><th>Relevance</th><th>Reprints</th></tr>" +
+    news.articles.map((a) => `<tr><td>${a.image ? `<img src="${safeUrl(a.image)}" loading="lazy" referrerpolicy="no-referrer" alt="">` : "<small>none</small>"}</td>
+      <td>${esc(a.seenAt.replace("T", " ").slice(0, 16))}</td>
+      <td><a href="${safeUrl(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.title)}</a><br><small>${esc(a.matchedQueries.join(", "))}</small></td>
+      <td>${esc(a.domain)}<br><small>${esc(a.language ?? "")}</small></td><td>${esc(a.iso3 ?? a.sourceCountry ?? "")}</td>
+      <td>${esc(a.relevance)}</td><td>${a.reprints}</td></tr>`).join("") + "</table>" + caveats(news));
+
+  set("loaded", new Date().toLocaleTimeString());
+}
+
+const tick = () => load().catch((e) => set("loaded", "load failed (" + esc(e.message) + ") — showing previous data"));
+tick();
+setInterval(tick, 60000);
+</script>
+</body>
+</html>
